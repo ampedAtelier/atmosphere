@@ -8,12 +8,15 @@
 #include <Adafruit_PM25AQI.h>
 
 Adafruit_Arcada arcada;
+const int numMenuItems = 2;
+const char *selection[numMenuItems] = {"Display AQI", "Display PSI"};
+
 Adafruit_PM25AQI aqSensor = Adafruit_PM25AQI();
-
-unsigned long previousMillis = 0;
-const long interval = 1000;
-
 int previousAQI = 501;
+
+const long interval = 1000;
+unsigned long previousMillis = 0;
+bool shouldRedraw = true;
 
 void setup() {
   if (!arcada.arcadaBegin()) {
@@ -28,8 +31,8 @@ void setup() {
   arcada.display->setTextWrap(true);
   arcada.display->setTextSize(1);
   arcada.display->println("PMSA003I");
-	// Wait one & half seconds for sensor to boot up!
-  delay(1500);
+	// Wait two seconds for sensor to boot up!
+  delay(2000);
   if (! aqSensor.begin_I2C()) { // connect to the sensor over I2C
     arcada.haltBox("Air Quality sensor not found!");
     //while (1) delay(10);
@@ -41,29 +44,41 @@ void loop() {
   unsigned long currentMillis = millis();
   PM25_AQI_Data data;
 
-  //TODO: arcada.readButtons();
-  //uint8_t buttons = arcada.justPressedButtons();
-
+  arcada.readButtons();
+  uint8_t buttons = arcada.justPressedButtons();
+  if (buttons & ARCADA_BUTTONMASK_SELECT){
+    uint8_t selected = arcada.menu(selection, numMenuItems, ARCADA_WHITE, ARCADA_BLACK);
+    char message[80];
+    sprintf(message, "Selected '%s'", selection[selected]);
+    arcada.display->fillScreen(ARCADA_BLUE);
+    arcada.infoBox(message);
+    shouldRedraw = true;
+  }
   if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-
     if (! aqSensor.read(&data)) {
       //Serial.println("Could not read from AQI");
-      arcada.pixels.setPixelColor(0, arcada.pixels.Color(255,0, 0));
+      arcada.pixels.setPixelColor(2, arcada.pixels.Color(255,0, 0));
       arcada.pixels.show();
       delay(500);  // try again in a bit!
       return;
     }
-    arcada.pixels.clear();
     //Serial.println("AQI reading success");
     int aqi = calculateAQI(data);
     // Don't redraw screen if the aqi hasn't changed
     if (aqi != previousAQI) {
-      displayAQI(aqi);
       previousAQI = aqi;
+      shouldRedraw = true;
     }
+    previousMillis = currentMillis;
+  } // interval check
+  if (shouldRedraw == true) {
+    //arcada.pixels.clear();
+    arcada.display->fillScreen(ARCADA_BLUE);
+    arcada.pixels.show();
+    displayAQI(previousAQI);
+    shouldRedraw = false;
   }
-}
+} // end loop
 
 // Returns a calculated air quality index (AQI)
 // https://learn.adafruit.com/air-quality-sensor-silo-house/code-usage
