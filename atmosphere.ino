@@ -1,5 +1,5 @@
 /**
- * aqDisplay displays particulate matter readings.
+ * Atmosphere displays particulate matter readings.
  * Board: Adafruit PyBadge M4 Express (SAMD51)
  * Sensor: Adafruit PM2.5 sensor via I2C
  * Library: Adafruit PM25 AQI
@@ -10,6 +10,10 @@
 Adafruit_Arcada arcada;
 const int numMenuItems = 2;
 const char *selection[numMenuItems] = {"Display AQI", "Display PSI"};
+enum displayMode {
+  AQI, PSI
+};
+displayMode currentDisplayMode = AQI;
 
 Adafruit_PM25AQI aqSensor = Adafruit_PM25AQI();
 int previousAQI = 501;
@@ -48,10 +52,15 @@ void loop() {
   uint8_t buttons = arcada.justPressedButtons();
   if (buttons & ARCADA_BUTTONMASK_SELECT){
     uint8_t selected = arcada.menu(selection, numMenuItems, ARCADA_WHITE, ARCADA_BLACK);
-    char message[80];
-    sprintf(message, "Selected '%s'", selection[selected]);
     arcada.display->fillScreen(ARCADA_BLUE);
-    arcada.infoBox(message);
+    switch (selected) {
+      case 1:
+        currentDisplayMode = PSI;
+        break;
+      case 0:
+      default:
+        currentDisplayMode = AQI;
+    }
     shouldRedraw = true;
   }
   if (currentMillis - previousMillis >= interval) {
@@ -75,7 +84,11 @@ void loop() {
     //arcada.pixels.clear();
     arcada.display->fillScreen(ARCADA_BLUE);
     arcada.pixels.show();
-    displayAQI(previousAQI);
+    if (currentDisplayMode == PSI) {
+      displayPSI(previousAQI);
+    } else {
+      displayAQI(previousAQI);
+    }
     shouldRedraw = false;
   }
 } // end loop
@@ -115,22 +128,37 @@ int calculateAQI(PM25_AQI_Data data) {
 // https://en.wikipedia.org/wiki/Air_quality_index#United_States
 void displayAQI(int aqi) {
   if (aqi < 51) {
-    drawReading(ARCADA_GREEN, ARCADA_BLACK, aqi, "Good");
+    drawReading(ARCADA_GREEN, ARCADA_BLACK, aqi, "Good", "AQI");
   } else if (aqi < 101) {
-    drawReading(ARCADA_YELLOW, ARCADA_BLACK, aqi, "Moderate");
+    drawReading(ARCADA_YELLOW, ARCADA_BLACK, aqi, "Moderate", "AQI");
   } else if (aqi < 151) {
-    drawReading(ARCADA_ORANGE, ARCADA_WHITE, aqi, "Unhealthy for Sensitive Groups");
+    drawReading(ARCADA_ORANGE, ARCADA_WHITE, aqi, "Unhealthy for Sensitive Groups", "AQI");
   } else if (aqi < 201) {
-    drawReading(ARCADA_RED, ARCADA_WHITE, aqi, "Unhealthy");
+    drawReading(ARCADA_RED, ARCADA_WHITE, aqi, "Unhealthy", "AQI");
   } else if (aqi < 301) {
-    drawReading(ARCADA_PURPLE, ARCADA_WHITE, aqi, "Very Unhealthy");
+    drawReading(ARCADA_PURPLE, ARCADA_WHITE, aqi, "Very Unhealthy", "AQI");
   } else if (aqi < 501) {
-    drawReading(ARCADA_MAROON, ARCADA_WHITE, aqi, "Hazardous");
+    drawReading(ARCADA_MAROON, ARCADA_WHITE, aqi, "Hazardous", "AQI");
+  }
+}
+
+// https://www.haze.gov.sg
+void displayPSI(int aqi) {
+  if (aqi < 51) {
+    drawReading(ARCADA_GREEN, ARCADA_BLACK, aqi, "Good", "PSI");
+  } else if (aqi < 101) {
+    drawReading(ARCADA_BLUE, ARCADA_WHITE, aqi, "Moderate", "PSI");
+  } else if (aqi < 201) {
+    drawReading(ARCADA_YELLOW, ARCADA_BLACK, aqi, "Unhealthy", "PSI");
+  } else if (aqi < 301) {
+    drawReading(ARCADA_ORANGE, ARCADA_WHITE, aqi, "Very Unhealthy", "PSI");
+  } else if (aqi < 501) {
+    drawReading(ARCADA_RED, ARCADA_WHITE, aqi, "Hazardous", "PSI");
   }
 }
 
 // Redraw 160x128 screen 
-void drawReading(uint16_t catColor, uint16_t valColor, int aqi, String catDesc) {
+void drawReading(uint16_t catColor, uint16_t valColor, int aqi, String catDesc, String index) {
   int startX = 80;
   arcada.display->fillScreen(ARCADA_BLUE); //28,113,187  //#1C71BB
   
@@ -151,7 +179,7 @@ void drawReading(uint16_t catColor, uint16_t valColor, int aqi, String catDesc) 
   arcada.display->print(aqi);
   arcada.display->setTextSize(1);
   arcada.display->setCursor(72, 68);
-  arcada.display->print("AQI");
+  arcada.display->print(index);
 
   arcada.display->setTextColor(ARCADA_WHITE);
   //handle long descriptions
